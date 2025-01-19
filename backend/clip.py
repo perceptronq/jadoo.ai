@@ -1,17 +1,275 @@
-from PIL import Image
-import requests
-
+from SPARQLWrapper import SPARQLWrapper, JSON
+import torch
 from transformers import CLIPProcessor, CLIPModel
+from PIL import Image
+
+def fetch_wikidata_description(entity_name):
+    sparql = SPARQLWrapper("https://query.wikidata.org/sparql")
+    query = f"""
+    SELECT ?description WHERE {{
+      ?entity rdfs:label "{entity_name}"@en.
+      ?entity schema:description ?description.
+      FILTER (lang(?description) = "en")
+    }}
+    """
+    sparql.setQuery(query)
+    sparql.setReturnFormat(JSON)
+    results = sparql.query().convert()
+
+    if results["results"]["bindings"]:
+        return results["results"]["bindings"][0]["description"]["value"]
+    return None
 
 model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
 processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
 
-url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+url = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS49vf4p6eFm6vYyT4CXEdynjQFqvKcJvTXZOCL85kwHsK81NURdYA9wn34csAvgt71lkc&usqp=CAU"
 image = Image.open(requests.get(url, stream=True).raw)
 
-inputs = processor(text=["a photo of a cat", "a photo of a dog"], images=image, return_tensors="pt", padding=True)
+# large set of famous shit
+labels = [
+    'Napoleon Bonaparte',
+    'Cleopatra',
+    'Julius Caesar',
+    'Abraham Lincoln',
+    'Mahatma Gandhi',
+    'Martin Luther King Jr.',
+    'Winston Churchill',
+    'Queen Elizabeth I',
+    'Genghis Khan',
+    'Leonardo da Vinci',
+    'Albert Einstein',
+    'Marie Curie',
+    'Isaac Newton',
+    'Charles Darwin',
+    'Galileo Galilei',
+    'Nelson Mandela',
+    'Frida Kahlo',
+    'Joan of Arc',
+    'George Washington',
+    'Thomas Edison',
+    'Beyoncé',
+    'Taylor Swift',
+    'Leonardo DiCaprio',
+    'Oprah Winfrey',
+    'Tom Hanks',
+    'Angelina Jolie',
+    'Brad Pitt',
+    'Dwayne "The Rock" Johnson',
+    'Rihanna',
+    'Elon Musk',
+    'Jeff Bezos',
+    'Bill Gates',
+    'Serena Williams',
+    'Cristiano Ronaldo',
+    'Lionel Messi',
+    'LeBron James',
+    'Kim Kardashian',
+    'Kanye West',
+    'Adele',
+    'Lady Gaga',
+    'Stephen Hawking',
+    'Nikola Tesla',
+    'Alan Turing',
+    'Steve Jobs',
+    'Mark Zuckerberg',
+    'Tim Berners-Lee',
+    'Richard Feynman',
+    'Neil deGrasse Tyson',
+    'Michael Jordan',
+    'Usain Bolt',
+    'Roger Federer',
+    'Cristiano Ronaldo',
+    'Lionel Messi',
+    'LeBron James',
+    'Tom Brady',
+    'Michael Phelps',
+    'Great Pyramid of Giza',
+    'Taj Mahal',
+    'Eiffel Tower',
+    'Statue of Liberty',
+    'Colosseum',
+    'Stonehenge',
+    'Petra',
+    'Machu Picchu',
+    'Christ the Redeemer',
+    'Leaning Tower of Pisa',
+    'Burj Khalifa',
+    'Empire State Building',
+    'Big Ben',
+    'Sydney Opera House',
+    'Mount Rushmore',
+    'Great Wall of China',
+    'Kremlin',
+    'Alhambra',
+    'Angkor Wat',
+    'Forbidden City',
+    'Sagrada Familia',
+    'Petronas Towers',
+    'One World Trade Center',
+    'Willis Tower',
+    'Taipei 101',
+    'Shard',
+    'International Commerce Centre',
+    'Lotte World Tower',
+    'Grand Canyon',
+    'Mount Everest',
+    'Victoria Falls',
+    'Amazon Rainforest',
+    'Great Barrier Reef',
+    'Niagara Falls',
+    'Mount Fuji',
+    'Yellowstone National Park',
+    'Aurora Borealis',
+    'Mount Kilimanjaro',
+    'Angel Falls',
+    'Yosemite National Park',
+    'Grand Teton National Park',
+    'Banff National Park',
+    'Statue of Liberty',
+    'David (Michelangelo)',
+    'Christ the Redeemer',
+    'Moai of Easter Island',
+    'The Thinker',
+    'Pietà',
+    'Charging Bull',
+    'Lincoln Memorial',
+    'Statue of David (Florence)',
+    'Terracotta Warriors',
+    'Apple',
+    'Microsoft',
+    'Google',
+    'Amazon',
+    'Facebook (Meta)',
+    'Samsung',
+    'IBM',
+    'Intel',
+    'HP',
+    'Cisco',
+    'Oracle',
+    'Dell',
+    'Sony',
+    'LG',
+    'Huawei',
+    'Qualcomm',
+    'NVIDIA',
+    'AMD',
+    'Tesla',
+    'SpaceX',
+    'Chanel',
+    'Gucci',
+    'Louis Vuitton',
+    'Prada',
+    'Hermes',
+    'Versace',
+    'Dolce & Gabbana',
+    'Burberry',
+    'Ralph Lauren',
+    'Calvin Klein',
+    'Tommy Hilfiger',
+    'Zara',
+    'H&M',
+    'Nike',
+    'Adidas',
+    'Puma',
+    'Reebok',
+    'Vans',
+    'Converse',
+    'Timberland',
+    'Toyota',
+    'Volkswagen',
+    'Ford',
+    'General Motors',
+    'Honda',
+    'BMW',
+    'Mercedes-Benz',
+    'Audi',
+    'Porsche',
+    'Ferrari',
+    'Lamborghini',
+    'McLaren',
+    'Tesla',
+    'Hyundai',
+    'Kia',
+    'Nissan',
+    'Mitsubishi',
+    'Subaru',
+    'Jaguar',
+    'Land Rover',
+    'Coca-Cola',
+    'PepsiCo',
+    'Nestlé',
+    'Unilever',
+    'Kraft Heinz',
+    'Mars',
+    'Mondelez International',
+    '雀巢',
+    '麦当劳',
+    '肯德基',
+    '星巴克',
+    '百事',
+    '可口可乐',
+    '必胜客',
+    'Subway',
+    'Domino\'s Pizza',
+    'Burger King',
+    'Wendy\'s',
+    'Taco Bell',
+    'Chipotle',
+    'Panera Bread',
+    'Starbucks',
+    'Walmart',
+    'Amazon',
+    'Target',
+    'Costco',
+    'Home Depot',
+    'Lowe\'s',
+    'Macy\'s',
+    'Sears',
+    'Best Buy',
+    'CVS',
+    'Walgreens',
+    'Sephora',
+    'Nordstrom',
+    'JCPenney',
+    'Kohl\'s',
+    'Bed Bath & Beyond',
+    'Homegoods',
+    '宜家',
+    'H&M',
+    'Zara',
+    'Uniqlo',
+    'Walt Disney Company',
+    'Warner Bros.',
+    'Universal Studios',
+    'Paramount Pictures',
+    'Sony Pictures',
+    '21st Century Fox',
+    'NBCUniversal',
+    'DreamWorks',
+    'Lucasfilm',
+    'Marvel Entertainment',
+    'Warner Music Group',
+    'Universal Music Group',
+    'Sony Music Entertainment',
+    'BMG',
+    '华特迪士尼',
+    '派拉蒙',
+    '环球影城'
+]
 
-outputs = model(**inputs)
-logits_per_image = outputs.logits_per_image # this is the image-text similarity score
-probs = logits_per_image.softmax(dim=1) # we can take the softmax to get the label probabilities
+batch_size = 100
+scores = []
+label_indices = []
+for i in range(0, len(labels), batch_size):
+    batch_labels = labels[i:i+batch_size]
+    inputs = processor(text=batch_labels, images=image, return_tensors="pt", padding=True)
+    outputs = model(**inputs)
+    logits_per_image = outputs.logits_per_image
+    probs = logits_per_image.softmax(dim=1).squeeze(0)  # logits to probab
+    scores.extend(probs.tolist())
+    label_indices.extend(range(i, i + len(batch_labels)))
 
+top3 = sorted(zip(scores, label_indices), key=lambda x: x[0], reverse=True)[:3]
+for score, idx in top3:
+    print(f"Label: {labels[idx]}, Score: {score:.4f}")
